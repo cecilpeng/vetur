@@ -1,10 +1,10 @@
 {
   "name": "vetur",
   "displayName": "Yunkai Vetur",
-  "description": "Vue tooling for VS Code - Html formatting edition",
+  "description": "Vue tooling for VS Code - Template+JSON formatting edition",
   "author": "pengc@yunk.ai",
   "icon": "asset/vue.png",
-  "version": "0.21.1",
+  "version": "0.21.2",
   "publisher": "pengchong",
   "scripts": {
     "build:grammar": "tsc -p . && node dist/scripts/build_grammar",
@@ -345,6 +345,19 @@
             "ts formatter from TypeScript"
           ],
           "description": "Default formatter for <script> region"
+        },
+        "vetur.format.defaultFormatter.json": {
+          "type": "string",
+          "default": "prettier",
+          "enum": [
+            "none",
+            "prettier"
+          ],
+          "enumDescriptions": [
+            "disable formatting",
+            "json formatter from prettier"
+          ],
+          "description": "Default formatter for <i18n> region"
         },
         "vetur.format.defaultFormatterOptions": {
           "type": "object",

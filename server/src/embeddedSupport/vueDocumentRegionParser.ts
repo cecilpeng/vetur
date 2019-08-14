@@ -54,6 +54,11 @@ export function parseVueDocumentRegions(document: TextDocument) {
           if (templateRegion) {
             regions.push(templateRegion);
           }
+        } else if (tagName === 'i18n') {
+          const templateRegion = scanI18nRegion(scanner, text);
+          if (templateRegion) {
+            regions.push(templateRegion);
+          }
         }
         lastTagName = tagName;
         lastAttributeName = '';
@@ -167,6 +172,39 @@ function scanTemplateRegion(scanner: Scanner, text: string): EmbeddedRegion | nu
     start,
     end,
     type: 'template'
+  };
+}
+
+function scanI18nRegion(scanner: Scanner, text: string): EmbeddedRegion | null {
+  const languageId: LanguageId = 'json';
+
+  let token: number;
+  const start = scanner.getTokenOffset() + 5;
+  let end: number;
+
+  // Scan until finding matching i18n EndTag
+  let unClosedTemplate = 1;
+  while (unClosedTemplate !== 0) {
+    token = scanner.scan();
+    if (token === TokenType.EOS) {
+      return null;
+    }
+
+    if (token === TokenType.EndTag && scanner.getTokenText() === 'i18n') {
+      unClosedTemplate--;
+      break;
+    }
+  }
+
+  // In EndTag, find end
+  // -2 for <i18n>
+  end = scanner.getTokenOffset() - 2;
+
+  return {
+    languageId,
+    start,
+    end,
+    type: 'custom'
   };
 }
 
