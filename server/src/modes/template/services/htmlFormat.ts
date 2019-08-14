@@ -38,6 +38,12 @@ export function htmlFormat(document: TextDocument, currRange: Range, vlsFormatCo
     } else {
       beautifiedHtml = originalSource;
     }
+
+    // 支持prettyhtml的wrapAttributes和sortAttributes
+    const prettyhtml = vlsFormatConfig.defaultFormatterOptions['prettyhtml'];
+    if (prettyhtml) {
+      beautifiedHtml = formatWithPrettyHtml(getFileFsPath(document.uri), beautifiedHtml, vlsFormatConfig);
+    }
   } else {
     beautifiedHtml = formatWithJsBeautify(originalSource, vlsFormatConfig);
   }

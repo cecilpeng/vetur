@@ -23,6 +23,7 @@ import {
 
 import { getLanguageModelCache, LanguageModelCache } from './languageModelCache';
 import { getVueDocumentRegions, VueDocumentRegions, LanguageId, LanguageRange } from './embeddedSupport';
+import { getJSONMode } from '../modes/json';
 import { getVueMode } from '../modes/vue';
 import { getCSSMode, getSCSSMode, getLESSMode, getPostCSSMode } from '../modes/style';
 import { getJavascriptMode } from '../modes/script/javascript';
@@ -86,7 +87,8 @@ export class LanguageModes {
     stylus: nullMode,
     javascript: nullMode,
     typescript: nullMode,
-    tsx: nullMode
+    tsx: nullMode,
+    json: nullMode
   };
 
   private documentRegions: LanguageModelCache<VueDocumentRegions>;
@@ -144,6 +146,7 @@ export class LanguageModes {
     this.modes['stylus'] = getStylusMode(this.documentRegions);
     this.modes['javascript'] = jsMode;
     this.modes['typescript'] = jsMode;
+    this.modes['json'] = getJSONMode(this.documentRegions);
     this.modes['tsx'] = jsMode;
   }
 

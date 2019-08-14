@@ -28,6 +28,11 @@ Try it out with [Veturpack](https://github.com/octref/veturpack)!
 
 🎉 VueConf 2017 [Slide](https://www.dropbox.com/sh/eb4w8k3orh0j391/AAB3HaJexbGLa2tCP14BI8oJa?dl=0) & [Video](https://www.youtube.com/watch?v=05tNXJ-Kric) 🎉
 
+## Edition
+
+ - html formatting supporting prettier and prettyhtml mixed features
+ - i18n formatting
+
 ## Features
 
 - Syntax-highlighting
