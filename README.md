@@ -28,10 +28,37 @@ Try it out with [Veturpack](https://github.com/octref/veturpack)!
 
 🎉 VueConf 2017 [Slide](https://www.dropbox.com/sh/eb4w8k3orh0j391/AAB3HaJexbGLa2tCP14BI8oJa?dl=0) & [Video](https://www.youtube.com/watch?v=05tNXJ-Kric) 🎉
 
-## Edition
+## Revision
 
  - html formatting supporting prettier and prettyhtml mixed features
  - i18n formatting
+
+  eg: 
+
+  .vscode/settings.json
+  ```json
+  {
+    // https://vuejs.github.io/vetur/formatting.html#settings
+    "vetur.format.defaultFormatter.html": "prettier", // Work well with prettier only
+    "vetur.format.defaultFormatterOptions": {
+      "prettyhtml": {
+        "tabWidth": 2,
+        "useTabs": false,
+        "printWidth": 80,
+        "singleQuote": false,
+        "wrapAttributes": true,
+        "sortAttributes": true
+      }
+    }
+  }
+  ```
+
+  .prettierrc.js
+  ```javascript
+  module.exports = {
+    htmlWhitespaceSensitivity: 'ignore', // Must do like this to fix the mixed html formatting problems
+  }
+  ```
 
 ## Features
 
