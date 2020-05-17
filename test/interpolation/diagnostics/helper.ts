@@ -17,7 +17,10 @@ export async function testDiagnostics(
     assert.equal(
       expectedDiagnostics.length,
       result.length,
-      'Expected diagnostics length is not same as actual diagnostics one'
+      `Expected diagnostics message length is not same as actual.\n` +
+        `Expected:\n${JSON.stringify(expectedDiagnostics, null, 2)}` +
+        `\n\n` +
+        `Actual:\n${JSON.stringify(result, null, 2)}`
     );
   }
 
@@ -27,7 +30,7 @@ export async function testDiagnostics(
         return isEqualDiagnostic(ed, d);
       }),
       `Cannot find matching diagnostics for ${ed.message}\n${JSON.stringify(ed)}\n` +
-        `Seen diagnostics are:\n${JSON.stringify(result)}`
+        `Seen diagnostics are:\n${JSON.stringify(result, null, 2)}`
     );
   });
 

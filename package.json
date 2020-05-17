@@ -4,21 +4,25 @@
   "description": "Vue tooling for VS Code - I18n formatting revision",
   "author": "pengc@yunk.ai",
   "icon": "asset/vue.png",
-  "version": "0.21.2",
+  "version": "0.24.0",
   "publisher": "pengchong",
   "scripts": {
     "build:grammar": "tsc -p . && node dist/scripts/build_grammar",
-    "compile": "tsc -b .",
-    "watch": "tsc -b -w .",
+    "compile": "run-s compile:source copy:snippets",
+    "compile:source": "tsc -b .",
+    "watch": "run-s compile copy:snippets watch:build",
+    "watch:build": "tsc -b -w .",
+    "copy:snippets": "bash ./build/copy-snippets.sh",
     "lint": "tslint -c tslint.json client/**/*.ts server/**/*.ts scripts/**/*.ts",
     "test:server": "npm run compile && cd server && npm test",
     "test:e2e": "node ./dist/test/codeTestRunner.js",
     "test:grammar": "node ./dist/test/codeTestRunner.js grammar",
     "test:lsp": "node ./dist/test/codeTestRunner.js lsp",
     "test:int": "node ./dist/test/codeTestRunner.js interpolation",
+    "test:vue3": "node ./dist/test/codeTestRunner.js vue3",
     "test": "run-s compile test:server test:e2e",
     "docs": "bash ./build/update-docs.sh",
-    "prepare-publish": "yarn compile -f && ./build/release-cleanup.sh"
+    "prepare-publish": "./build/release-cleanup.sh"
   },
   "husky": {
     "hooks": {
@@ -28,12 +32,10 @@
   },
   "lint-staged": {
     "*.ts": [
-      "tslint --fix",
-      "git add"
+      "tslint --fix"
     ],
     "*.{js,ts,yaml}": [
-      "prettier --write",
-      "git add"
+      "prettier --write"
     ]
   },
   "repository": {
@@ -50,11 +52,11 @@
     "Programming Languages"
   ],
   "engines": {
-    "vscode": "^1.32.0"
+    "vscode": "^1.42.0"
   },
   "dependencies": {
-    "vscode-languageclient": "^5.3.0-next.3",
-    "vscode-languageserver-types": "^3.15.0-next.1"
+    "vscode-languageclient": "^6.1.3",
+    "vscode-languageserver-types": "^3.15.0-next.9"
   },
   "activationEvents": [
     "onLanguage:vue"
@@ -69,6 +71,10 @@
       {
         "command": "vetur.showCorrespondingVirtualFile",
         "title": "Vetur: Show corresponding virtual file and sourcemap"
+      },
+      {
+        "command": "vetur.openUserScaffoldSnippetFolder",
+        "title": "Vetur: Open user scaffold snippet folder"
       }
     ],
     "breakpoints": [
@@ -159,6 +165,16 @@
         "injectTo": [
           "source.vue"
         ]
+      },
+      {
+        "scopeName": "markdown.vue.codeblock",
+        "path": "./syntaxes/markdown-vue.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.vue": "vue"
+        }
       }
     ],
     "configuration": {
@@ -175,10 +191,31 @@
           "default": true,
           "description": "Include completion for module export and auto import them"
         },
-        "vetur.completion.useScaffoldSnippets": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable/disable Vetur's built-in scaffolding snippets"
+        "vetur.completion.scaffoldSnippetSources": {
+          "type": "object",
+          "default": {
+            "workspace": "💼",
+            "user": "🗒️",
+            "vetur": "✌"
+          },
+          "properties": {
+            "workspace": {
+              "type": "string",
+              "default": "💼",
+              "description": "Show Scaffold Snippets from `<WORKSPACE>/.vscode/vetur/snippets`."
+            },
+            "user": {
+              "type": "string",
+              "default": "🗒️",
+              "description": "Show Scaffold Snippets from `<USER-DATA-DIR>/User/snippets/vetur`."
+            },
+            "vetur": {
+              "type": "string",
+              "default": "✌",
+              "description": "Show Scaffold Snippets bundled in Vetur."
+            }
+          },
+          "description": "Where Vetur source Scaffold Snippets from and how to indicate them. Set a source to \"\" to disable it.\n\n- workspace: `<WORKSPACE>/.vscode/vetur/snippets`.\n- user: `<USER-DATA-DIR>/User/snippets/vetur`.\n- vetur: Bundled in Vetur.\n\nThe default is:\n```\n\"vetur.completion.scaffoldSnippetSources\": {\n  \"workspace\": \"💼\",\n  \"user\": \"🗒️\",\n  \"vetur\": \"✌\"\n}\n```\n\nAlternatively, you can do:\n\n```\n\"vetur.completion.scaffoldSnippetSources\": {\n  \"workspace\": \"(W)\",\n  \"user\": \"(U)\",\n  \"vetur\": \"(V)\"\n}\n```\n\nRead more: https://vuejs.github.io/vetur/snippet.html."
         },
         "vetur.completion.tagCasing": {
           "type": "string",
@@ -286,6 +323,19 @@
             "scss formatter using scss parser from prettier"
           ],
           "description": "Default formatter for <style lang='scss'> region"
+        },
+        "vetur.format.defaultFormatter.sass": {
+          "type": "string",
+          "default": "sass-formatter",
+          "enum": [
+            "none",
+            "sass-formatter"
+          ],
+          "enumDescriptions": [
+            "disable formatting",
+            "sass formatter"
+          ],
+          "description": "Default formatter for <style lang='sass'> region"
         },
         "vetur.format.defaultFormatter.less": {
           "type": "string",
@@ -464,22 +514,24 @@
   },
   "devDependencies": {
     "@types/glob": "^7.1.1",
-    "@types/js-yaml": "^3.12.1",
-    "@types/lodash": "^4.14.117",
-    "@types/mocha": "^5.2.6",
-    "@types/node": "^10.11.0",
-    "@types/shelljs": "^0.8.5",
-    "@types/vscode": "^1.32.0",
-    "glob": "^7.1.4",
-    "husky": "^3.0.0",
+    "@types/js-yaml": "^3.12.3",
+    "@types/lodash": "^4.14.150",
+    "@types/minimist": "^1.2.0",
+    "@types/mocha": "^7.0.2",
+    "@types/node": "^13.13.5",
+    "@types/shelljs": "^0.8.6",
+    "@types/vscode": "^1.45.0",
+    "glob": "^7.1.6",
+    "husky": "^3.1.0",
     "js-yaml": "^3.13.1",
-    "lint-staged": "^9.2.0",
-    "mocha": "^5.2.0",
+    "lint-staged": "^10.1.3",
+    "minimist": "^1.2.5",
+    "mocha": "^7.1.2",
     "npm-run-all": "^4.1.5",
-    "prettier": "^1.17.0",
+    "prettier": "^1.19.1",
     "shelljs": "^0.8.3",
-    "tslint": "^5.18.0",
-    "typescript": "^3.3.3333",
-    "vscode": "1.1.29"
+    "tslint": "^6.1.2",
+    "typescript": "^3.8.3",
+    "vscode-test": "^1.3.0"
   }
 }

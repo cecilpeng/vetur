@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 import { AST } from 'vue-eslint-parser';
 import { T_TypeScript } from '../dependencyService';
+import { walkExpression } from './walkExpression';
 
 export const renderHelperName = '__vlsRenderHelper';
 export const componentHelperName = '__vlsComponentHelper';
@@ -10,7 +11,7 @@ export const iterationHelperName = '__vlsIterationHelper';
  * Allowed global variables in templates.
  * Borrowed from: https://github.com/vuejs/vue/blob/dev/src/core/instance/proxy.js
  */
-const globalScope = (
+export const globalScope = (
   'Infinity,undefined,NaN,isFinite,isNaN,' +
   'parseFloat,parseInt,decodeURI,decodeURIComponent,encodeURI,encodeURIComponent,' +
   'Math,Number,Date,Array,Object,Boolean,String,RegExp,Map,Set,JSON,Intl,' +
@@ -24,7 +25,7 @@ type ESLintVChild = AST.VElement | AST.VExpressionContainer | AST.VText;
 export function getTemplateTransformFunctions(ts: T_TypeScript) {
   return {
     transformTemplate,
-    injectThis
+    parseExpression
   };
 
   /**
@@ -147,27 +148,13 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
   }
 
   function transformVBind(vBind: AST.VDirective, code: string, scope: string[]): ts.ObjectLiteralElementLike {
-    let exp: ts.Expression;
-    if (!vBind.value || !vBind.value.expression) {
-      exp = ts.createLiteral(true);
-    } else {
-      const value = vBind.value.expression as AST.ESLintExpression | AST.VFilterSequenceExpression;
-      if (value.type === 'VFilterSequenceExpression') {
-        exp = transformFilter(value, code, scope);
-      } else {
-        exp = parseExpression(value, code, scope);
-      }
-    }
-
+    const exp = vBind.value ? transformExpressionContainer(vBind.value, code, scope) : ts.createLiteral(true);
     return directiveToObjectElement(vBind, exp, code, scope);
   }
 
   function transformVOn(vOn: AST.VDirective, code: string, scope: string[]): ts.ObjectLiteralElementLike {
     let exp: ts.Expression;
-    if (vOn.value && vOn.value.expression) {
-      // value.expression can be ESLintExpression (e.g. ArrowFunctionExpression)
-      const vOnExp = vOn.value.expression as AST.VOnExpression | AST.ESLintExpression;
-
+    if (vOn.value) {
       if (!vOn.key.argument) {
         // e.g.
         //   v-on="$listeners"
@@ -176,17 +163,20 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
         // with bridge type and it. Currently, bridge type should only be used
         // for inferring `$event` type.
         exp = ts.createAsExpression(
-          vOnExp.type !== 'VOnExpression' ? parseExpression(vOnExp, code, scope) : ts.createObjectLiteral([]),
+          transformExpressionContainer(vOn.value, code, scope),
           ts.createKeywordTypeNode(ts.SyntaxKind.AnyKeyword)
         );
       } else {
         // e.g.
         //   @click="onClick"
         //   @click="onClick($event, 'test')"
+
+        // value.expression can be ESLintExpression (e.g. ArrowFunctionExpression)
+        const vOnExp = vOn.value.expression as AST.VOnExpression | AST.ESLintExpression | null;
         const newScope = scope.concat(vOnScope);
         const statements =
-          vOnExp.type !== 'VOnExpression'
-            ? [ts.createExpressionStatement(parseExpression(vOnExp, code, newScope))]
+          !vOnExp || vOnExp.type !== 'VOnExpression'
+            ? [ts.createExpressionStatement(transformExpressionContainer(vOn.value, code, newScope))]
             : vOnExp.body.map(st => transformStatement(st, code, newScope));
 
         exp = ts.createFunctionExpression(
@@ -211,7 +201,6 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
         ts.createBlock([])
       );
     }
-
     return directiveToObjectElement(vOn, exp, code, scope);
   }
 
@@ -234,15 +223,7 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
       } else {
         // Attribute name is dynamic
         // e.g. v-bind:[value]="foo"
-
-        // Empty expression is invalid. Return empty object spread.
-        if (name.expression === null) {
-          return ts.createSpreadAssignment(ts.createObjectLiteral());
-        }
-
-        const propertyName = ts.createComputedPropertyName(
-          parseExpression(name.expression as AST.ESLintExpression, code, scope)
-        );
+        const propertyName = ts.createComputedPropertyName(transformExpressionContainer(name, code, scope));
         return ts.createPropertyAssignment(propertyName, dirExp);
       }
     } else {
@@ -258,12 +239,12 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
   function transformDirective(dir: AST.VDirective, code: string, scope: string[]): ts.Expression[] {
     const res: ts.Expression[] = [];
 
-    if (dir.key.argument && dir.key.argument.type === 'VExpressionContainer' && dir.key.argument.expression) {
-      res.push(parseExpression(dir.key.argument.expression as AST.ESLintExpression, code, scope));
+    if (dir.key.argument && dir.key.argument.type === 'VExpressionContainer') {
+      res.push(transformExpressionContainer(dir.key.argument, code, scope));
     }
 
-    if (dir.value && dir.value.expression) {
-      res.push(parseExpression(dir.value.expression as AST.ESLintExpression, code, scope));
+    if (dir.value) {
+      res.push(transformExpressionContainer(dir.value, code, scope));
     }
 
     return res;
@@ -410,9 +391,8 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
 
       function vIfFamilyTransform(vIfFamily: VIfFamilyData, scope: string[]): ts.Expression {
         const dir = vIfFamily.directive;
-        const exp = dir.value && (dir.value.expression as AST.ESLintExpression | null);
 
-        const condition = exp ? parseExpression(exp, code, scope) : ts.createLiteral(true);
+        const condition = dir.value ? transformExpressionContainer(dir.value, code, scope) : ts.createLiteral(true);
         const next = vIfFamily.next ? vIfFamilyTransform(vIfFamily.next, scope) : ts.createLiteral(true);
 
         return ts.createConditional(
@@ -439,7 +419,7 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
 
         return ts.createCall(ts.createIdentifier(iterationHelperName), undefined, [
           // Iteration target
-          parseExpression(exp.right, code, scope),
+          transformExpression(exp.right, code, scope),
 
           // Callback
 
@@ -478,18 +458,8 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
         switch (child.type) {
           case 'VElement':
             return transformElement(child, code, scope);
-          case 'VExpressionContainer': {
-            const exp = child.expression as AST.ESLintExpression | AST.VFilterSequenceExpression | null;
-            if (!exp) {
-              return ts.createLiteral('');
-            }
-
-            if (exp.type === 'VFilterSequenceExpression') {
-              return transformFilter(exp, code, scope);
-            }
-
-            return parseExpression(exp, code, scope);
-          }
+          case 'VExpressionContainer':
+            return transformExpressionContainer(child, code, scope);
           case 'VText':
             return ts.createLiteral(child.value);
         }
@@ -512,11 +482,11 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
       return ts.createExpressionStatement(ts.createLiteral(''));
     }
 
-    return ts.createExpressionStatement(parseExpression(statement.expression, code, scope));
+    return ts.createExpressionStatement(transformExpression(statement.expression, code, scope));
   }
 
   function transformFilter(filter: AST.VFilterSequenceExpression, code: string, scope: string[]): ts.Expression {
-    const exp = parseExpression(filter.expression, code, scope);
+    const exp = transformExpression(filter.expression, code, scope);
 
     // Simply convert all filter arguments into array literal because
     // we just want to check their types.
@@ -527,7 +497,7 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
         return ts.createArrayLiteral(
           f.arguments.map(arg => {
             const exp = arg.type === 'SpreadElement' ? arg.argument : arg;
-            return parseExpression(exp, code, scope);
+            return transformExpression(exp, code, scope);
           })
         );
       })
@@ -536,18 +506,37 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
     return ts.createBinary(filterExps, ts.SyntaxKind.BarBarToken, exp);
   }
 
-  function parseExpression(expression: AST.ESLintExpression, code: string, scope: string[]): ts.Expression {
-    const [start, end] = expression.range;
+  function transformExpressionContainer(
+    container: AST.VExpressionContainer,
+    code: string,
+    scope: string[]
+  ): ts.Expression {
+    const exp = container.expression;
+    if (exp) {
+      if (exp.type === 'VOnExpression' || exp.type === 'VForExpression' || exp.type === 'VSlotScopeExpression') {
+        throw new Error(`'${exp.type}' should not be transformed with 'transformExpressionContainer'`);
+      }
+
+      if (exp.type === 'VFilterSequenceExpression') {
+        return transformFilter(exp, code, scope);
+      }
+    }
+
+    // Other type of expression should parsed by TypeScript compiler
+    const [start, end] = expressionCodeRange(container);
     const expStr = code.slice(start, end);
 
-    const tsExp = parseExpressionImpl(expStr, scope, start);
-    if (!ts.isObjectLiteralExpression(tsExp)) {
-      ts.setSourceMapRange(tsExp, { pos: start, end });
-    }
-    return tsExp;
+    return parseExpression(expStr, scope, start);
   }
 
-  function parseExpressionImpl(exp: string, scope: string[], start: number): ts.Expression {
+  function transformExpression(exp: AST.ESLintExpression, code: string, scope: string[]): ts.Expression {
+    const [start, end] = exp.range;
+    const expStr = code.slice(start, end);
+
+    return parseExpression(expStr, scope, start);
+  }
+
+  function parseExpression(exp: string, scope: string[], start: number): ts.Expression {
     // Add parenthesis to deal with object literal expression
     const wrappedExp = '(' + exp + ')';
     const source = ts.createSourceFile('/tmp/parsed.ts', wrappedExp, ts.ScriptTarget.Latest, true);
@@ -559,12 +548,36 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
     }
 
     const parenthesis = statement.expression as ts.ParenthesizedExpression;
-    return injectThis(
-      parenthesis.expression,
-      scope,
-      // Compensate for the added `(` that adds 1 to each Node's offset
-      start - '('.length
-    );
+
+    // Compensate for the added `(` that adds 1 to each Node's offset
+    const offset = start - '('.length;
+    return walkExpression(ts, parenthesis.expression, createWalkCallback(scope, offset, source));
+  }
+
+  function expressionCodeRange(container: AST.VExpressionContainer): [number, number] {
+    const parent = container.parent;
+    const offset =
+      parent.type === 'VElement' || parent.type === 'VDocumentFragment'
+        ? // Text node interpolation
+          // {{ exp }} => 2
+          2
+        : // Attribute interpolation
+          // v-test:[exp] => 1
+          // :name="exp" => 1
+          1;
+
+    return [container.range[0] + offset, container.range[1] - offset];
+  }
+
+  function createWalkCallback(scope: string[], offset: number, source: ts.SourceFile) {
+    return (node: ts.Expression, additionalScope: ts.Identifier[]) => {
+      const thisScope = scope.concat(additionalScope.map(id => id.text));
+
+      const injected = injectThis(node, thisScope, offset, source);
+      setSourceMapRange(injected, node, offset, source);
+      resetTextRange(injected);
+      return injected;
+    };
   }
 
   function parseParams(
@@ -579,171 +592,112 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
     const arrowFnStr = '(' + paramsStr + ') => {}';
 
     // Decrement the offset since the expression now has the open parenthesis.
-    const exp = parseExpressionImpl(arrowFnStr, scope, start - 1) as ts.ArrowFunction;
+    const exp = parseExpression(arrowFnStr, scope, start - 1) as ts.ArrowFunction;
     return exp.parameters;
   }
 
-  function injectThis(exp: ts.Expression, scope: string[], start: number): ts.Expression {
-    let res;
+  function injectThis(exp: ts.Expression, scope: string[], start: number, source: ts.SourceFile): ts.Expression {
     if (ts.isIdentifier(exp)) {
-      if (scope.indexOf(exp.text) < 0) {
-        res = ts.createPropertyAccess(ts.createThis(), exp);
-      } else {
-        return exp;
-      }
-    } else if (ts.isPropertyAccessExpression(exp)) {
-      res = ts.createPropertyAccess(injectThis(exp.expression, scope, start), exp.name);
-    } else if (ts.isElementAccessExpression(exp)) {
-      res = ts.createElementAccess(
-        injectThis(exp.expression, scope, start),
-        // argumentExpression cannot be undefined in the latest TypeScript
-        injectThis(exp.argumentExpression!, scope, start)
-      );
-    } else if (ts.isPrefixUnaryExpression(exp)) {
-      res = ts.createPrefix(exp.operator, injectThis(exp.operand, scope, start));
-    } else if (ts.isPostfixUnaryExpression(exp)) {
-      res = ts.createPostfix(injectThis(exp.operand, scope, start), exp.operator);
-    } else if (exp.kind === ts.SyntaxKind.TypeOfExpression) {
-      // Manually check `kind` for typeof expression
-      // since ts.isTypeOfExpression is not working.
-      res = ts.createTypeOf(injectThis((exp as ts.TypeOfExpression).expression, scope, start));
-    } else if (ts.isDeleteExpression(exp)) {
-      res = ts.createDelete(injectThis(exp.expression, scope, start));
-    } else if (ts.isVoidExpression(exp)) {
-      res = ts.createVoid(injectThis(exp.expression, scope, start));
-    } else if (ts.isBinaryExpression(exp)) {
-      res = ts.createBinary(injectThis(exp.left, scope, start), exp.operatorToken, injectThis(exp.right, scope, start));
-    } else if (ts.isConditionalExpression(exp)) {
-      res = ts.createConditional(
-        injectThis(exp.condition, scope, start),
-        injectThis(exp.whenTrue, scope, start),
-        injectThis(exp.whenFalse, scope, start)
-      );
-    } else if (ts.isCallExpression(exp)) {
-      res = ts.createCall(
-        injectThis(exp.expression, scope, start),
-        exp.typeArguments,
-        exp.arguments.map(arg => injectThis(arg, scope, start))
-      );
-    } else if (ts.isParenthesizedExpression(exp)) {
-      res = ts.createParen(injectThis(exp.expression, scope, start));
-    } else if (ts.isObjectLiteralExpression(exp)) {
-      res = ts.createObjectLiteral(exp.properties.map(p => injectThisForObjectLiteralElement(p, scope, start)));
-    } else if (ts.isArrayLiteralExpression(exp)) {
-      res = ts.createArrayLiteral(exp.elements.map(e => injectThis(e, scope, start)));
-    } else if (ts.isSpreadElement(exp)) {
-      res = ts.createSpread(injectThis(exp.expression, scope, start));
-    } else if (ts.isArrowFunction(exp)) {
-      const fnScope = scope.concat(flatMap(exp.parameters, collectScope));
-      const body = ts.isBlock(exp.body)
-        ? ts.createBlock(
-            // Only handle expression statement
-            exp.body.statements.filter(ts.isExpressionStatement).map(st => {
-              return ts.createExpressionStatement(injectThis(st.expression, fnScope, start));
-            })
-          )
-        : injectThis(exp.body, fnScope, start);
-
-      res = ts.createArrowFunction(
-        exp.modifiers,
-        exp.typeParameters,
-        exp.parameters,
-        exp.type,
-        exp.equalsGreaterThanToken,
-        body
-      );
-    } else if (ts.isTemplateExpression(exp)) {
-      const injectedSpans = exp.templateSpans.map(span => {
-        const literal = ts.isTemplateMiddle(span.literal)
-          ? ts.createTemplateMiddle(span.literal.text)
-          : ts.createTemplateTail(span.literal.text);
-
-        return ts.createTemplateSpan(injectThis(span.expression, scope, start), literal);
-      });
-
-      res = ts.createTemplateExpression(ts.createTemplateHead(exp.head.text), injectedSpans);
-    } else if (ts.isNewExpression(exp)) {
-      res = ts.createNew(
-        injectThis(exp.expression, scope, start),
-        exp.typeArguments,
-        exp.arguments && exp.arguments.map(arg => injectThis(arg, scope, start))
-      );
-    } else {
-      /**
-       * Because Nodes can have non-virtual positions
-       * Set them to synthetic positions so printers could print correctly
-       */
-      if (hasValidPos(exp)) {
-        ts.setTextRange(exp, { pos: -1, end: -1 });
-      }
-      return exp;
+      return scope.indexOf(exp.text) < 0 ? ts.createPropertyAccess(ts.createThis(), exp) : exp;
     }
-    return res;
+
+    if (ts.isObjectLiteralExpression(exp)) {
+      const properties = exp.properties.map(p => {
+        if (!ts.isShorthandPropertyAssignment(p)) {
+          return p;
+        }
+
+        // Divide short hand property to name and initializer and inject `this`
+        // We need to walk generated initializer expression.
+        const initializer = createWalkCallback(scope, start, source)(p.name, []);
+        return ts.createPropertyAssignment(p.name, initializer);
+      });
+      return ts.createObjectLiteral(properties);
+    }
+
+    return exp;
   }
 
-  function injectThisForObjectLiteralElement(
-    el: ts.ObjectLiteralElementLike,
-    scope: string[],
-    start: number
-  ): ts.ObjectLiteralElementLike {
-    let res;
-    if (ts.isPropertyAssignment(el)) {
-      let name: ts.PropertyName;
-      if (ts.isComputedPropertyName(el.name)) {
-        name = ts.createComputedPropertyName(injectThis(el.name.expression, scope, start));
-      } else if (ts.isStringLiteral(el.name)) {
-        name = ts.createStringLiteral(el.name.text);
-      } else if (ts.isNumericLiteral(el.name)) {
-        name = ts.createNumericLiteral(el.name.text);
-      } else {
-        name = el.name;
-      }
+  function setSourceMapRange(exp: ts.Expression, range: ts.Expression, offset: number, source: ts.SourceFile): void {
+    ts.setSourceMapRange(exp, {
+      pos: offset + range.getStart(source),
+      end: offset + range.getEnd()
+    });
 
-      if (!ts.isComputedPropertyName(el.name)) {
-        ts.setSourceMapRange(name, { pos: start + el.name.getStart(), end: start + el.name.getEnd() });
-      }
-
-      const initializer = injectThis(el.initializer, scope, start);
-      ts.setSourceMapRange(initializer, {
-        pos: start + el.initializer.getStart(),
-        end: start + el.initializer.getEnd()
+    if (ts.isPropertyAccessExpression(exp)) {
+      // May be transformed from Identifier by injecting `this`
+      const r = ts.isPropertyAccessExpression(range) ? range.name : range;
+      ts.setSourceMapRange(exp.name, {
+        pos: offset + r.getStart(source),
+        end: offset + r.getEnd()
       });
-      res = ts.createPropertyAssignment(name, initializer);
-    } else if (ts.isShorthandPropertyAssignment(el)) {
-      const initializer = injectThis(el.name, scope, start);
-      ts.setSourceMapRange(initializer, {
-        pos: start + el.name.getStart(),
-        end: start + el.name.getEnd()
-      });
-      res = ts.createPropertyAssignment(el.name, initializer);
-    } else if (ts.isSpreadAssignment(el)) {
-      res = ts.createSpreadAssignment(injectThis(el.expression, scope, start));
-    } else {
-      return el;
+      return;
     }
-    return res;
+
+    if (ts.isArrowFunction(exp)) {
+      const walkBinding = (name: ts.BindingName, range: ts.BindingName) => {
+        ts.setSourceMapRange(name, {
+          pos: offset + range.getStart(source),
+          end: offset + range.getEnd()
+        });
+
+        if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+          name.elements.forEach((el, i) => {
+            if (ts.isOmittedExpression(el)) {
+              return;
+            }
+            const elRange = (range as typeof name).elements[i] as typeof el;
+
+            ts.setSourceMapRange(el, {
+              pos: offset + elRange.getStart(source),
+              end: offset + elRange.getEnd()
+            });
+
+            walkBinding(el.name, elRange.name);
+          });
+        }
+      };
+
+      const r = range as ts.ArrowFunction;
+      exp.parameters.forEach((p, i) => {
+        const range = r.parameters[i];
+        ts.setSourceMapRange(p, {
+          pos: offset + range.getStart(source),
+          end: offset + range.getEnd()
+        });
+
+        walkBinding(p.name, range.name);
+      });
+    }
   }
 
   /**
-   * Collect newly added variable names from function parameters.
-   * e.g.
-   * If the function parameters look like following:
-   *   (foo, { bar, baz: qux }) => { ... }
-   * The output should be:
-   *   ['foo', 'bar', 'qux']
+   * Because Nodes can have non-virtual positions
+   * Set them to synthetic positions so printers could print correctly
    */
-  function collectScope(param: ts.ParameterDeclaration | ts.BindingElement): string[] {
-    const binding = param.name;
-    if (ts.isIdentifier(binding)) {
-      return [binding.text];
-    } else if (ts.isObjectBindingPattern(binding)) {
-      return flatMap(binding.elements, collectScope);
-    } else if (ts.isArrayBindingPattern(binding)) {
-      const filtered = binding.elements.filter(ts.isBindingElement);
-      return flatMap(filtered, collectScope);
-    } else {
-      return [];
+  function resetTextRange(exp: ts.Expression): void {
+    if (ts.isObjectLiteralExpression(exp)) {
+      exp.properties.forEach((p, i) => {
+        if (ts.isPropertyAssignment(p) && !ts.isComputedPropertyName(p.name)) {
+          ts.setTextRange(p.name, {
+            pos: -1,
+            end: -1
+          });
+        }
+      });
     }
+
+    if (ts.isTemplateExpression(exp)) {
+      ts.setTextRange(exp.head, { pos: -1, end: -1 });
+      exp.templateSpans.forEach(span => {
+        ts.setTextRange(span.literal, {
+          pos: -1,
+          end: -1
+        });
+      });
+    }
+
+    ts.setTextRange(exp, { pos: -1, end: -1 });
   }
 
   function isVAttribute(node: AST.VAttribute | AST.VDirective): node is AST.VAttribute {
@@ -776,15 +730,5 @@ export function getTemplateTransformFunctions(ts: T_TypeScript) {
 
   function isVSlot(node: AST.VAttribute | AST.VDirective): node is AST.VDirective {
     return node.directive && (node.key.name.name === 'slot' || node.key.name.name === 'slot-scope');
-  }
-
-  function flatMap<T extends ts.Node, R>(list: ReadonlyArray<T>, fn: (value: T) => R[]): R[] {
-    return list.reduce<R[]>((acc, item) => {
-      return acc.concat(fn(item));
-    }, []);
-  }
-
-  function hasValidPos(node: ts.Node) {
-    return node.pos !== -1 && node.end !== -1;
   }
 }

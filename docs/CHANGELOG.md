@@ -1,5 +1,73 @@
 # Changelog
 
+### 0.24.0 | 2020-03-04 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.24.0/vspackage)
+
+- **`vue-language-server` deprecated and will be published as `vls`**.
+- Support Vue 3 interface with `defineComponent`. #1638.
+- Update to TS 3.7.5 to avoid TypeScript issues with files not stored in C: drives on Windows. #1589.
+- Vetur will now print the prettier configuration it loaded in Output -> Vue Language Server, when `"vetur.dev.logLevel": "DEBUG"` is set. #1407.
+- Enable Windows CI with Azure DevOps. #1266.
+- Upgrade to `vscode-langaugeclient`/`vscode-languageserver` V6. #1719.
+  - Fix a file lock issue on asar files. #1474.
+  - MDN links on CSS completion. #1751.
+  - Fix an error on VTI not able to load `vscode-css-languageservice/lib/umd/data/browsers`. #1732.
+  - Pull latest [web data](https://www.npmjs.com/package/vscode-web-custom-data) for Stylus support.
+  - Use Markdown documentation for Stylus completion description.
+- 🙌 Better template interpolation auto completion. Thanks to contribution from [@ktsn](https://github.com/ktsn). #1129 and #1446.
+- 🙌 Fix syntax highlighting when `</template` and `>` are not on the same line. Thanks to contribution from [Ross Allen](https://github.com/ssorallen). #1211.
+- 🙌 Add [`sass-formatter`](https://github.com/TheRealSyler/sass-formatter) as a formatter for SASS region. Thanks to contribution from [@TheRealSyler](https://github.com/TheRealSyler). #1433.
+- 🙌 Provide Quasar support when `quasar` is in `devDependencies`. Thanks to contribution from [@moander](https://github.com/moander). #1504.
+- 🙌 Fix Windows path handling. Thanks to contribution from [@mattn](https://github.com/mattn). #1662.
+
+### 0.23.0 | 2020-01-12 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.23.0/vspackage)
+
+- VTI (Vetur Terminal Interface). #1149.
+- Provide default VLS config and do not crash when no config is provided. #977.
+- Upgrade to TypeScript 3.7 with Optional Chaining and Nullish Coalescing. #1510.
+- 🙌 Fix syntax highlighting for interpolation in attributes with numbers (such as `x1`). Thanks to contribution from [Niklas Higi](https://github.com/shroudedcode). #1465.
+- 🙌 Fix syntax highlighting for backticked vue code block in Markdown file. Thanks to contribution from [Abdelrahman Awad](https://github.com/logaretm). #1024 and #1485.
+
+### 0.22.6 | 2019-10-23 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.6/vspackage)
+
+- Fix path handling issues that causes TypeScript language features to stop working. #1476.
+
+### 0.22.5 | 2019-10-21 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.5/vspackage)
+
+- Support analyzing invalid template interpolation expression. #1448.
+- 🙌 Fix a TypeScript integration issue that cuases completions to fail. Thanks to contribution from [@yoyo930021](https://github.com/yoyo930021). #1449.
+
+### 0.22.4 | 2019-10-01 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.4/vspackage)
+
+- Improve performance by caching module resolution results. #1442.
+- Load Vetur built-in snippets and workspace snippets even when `globalSnippetDir` is unset. #1421.
+
+### 0.22.3 | 2019-09-12 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.3/vspackage)
+
+- Upgrade `element-helper-json` dependency for correct auto-completion. #1391.
+- 🙌 Fix VLS fail to start when `globalSnippetDir` is undefined. Thanks to contribution from [@demsking](https://github.com/demsking). #1402.
+- Improve source map for better handling of interpolation expression containing whitespace trivia. #1335.
+- Show hover info for v-for variables. #1374.
+- Update TypeScript to 3.6.3 for VLS. #1425.
+
+### 0.22.2 | 2019-08-15 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.2/vspackage)
+
+- Update to TypeScript 3.5.3. #1389.
+- Relax `$event` type to avoid type error on `@` events. Thanks to contribution from [@ktsn](https://github.com/ktsn). #1306.
+- Fix a bug that causes scaffold snippets to show twice. #1386.
+
+### 0.22.1 | 2019-08-13 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.1/vspackage)
+
+- Fix command "Open user scaffold snippet folder" failure when the global snippet dir doens't exist yet. #1383.
+- Add back sass/postcss/stylus scaffold snippet into the new snippet system. #1386.
+
+### 0.22.0 | 2019-08-09 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.22.0/vspackage)
+
+- New Scaffold Snippets system that allows system / workspace level customizable snippets. See details in [snippet docs](https://vuejs.github.io/vetur/snippet.html). #1151.
+- 🙌 `prettier-tslint` formatter option for TS region. Thanks to contribution from [@NickeyLin](https://github.com/NickeyLin). #1354.
+- 🙌 Replaced bundled Vuetify support with official tag/attribute definition from Vuetify@2.0. Thanks to contribution from [@nekosaur](https://github.com/nekosaur). #1365.
+- 🙌 Avoid template diagnostic error on empty v-on. Thanks to contribution from [@ktsn](https://github.com/ktsn). #1371.
+- 🙌 Read `.prettierrc` config for prettyhtml formatting. Thanks to contributino from [@bolasblack](https://github.com/bolasblack). #1036.
+
 ### 0.21.1 | 2019-06-28 | [VSIX](https://marketplace.visualstudio.com/_apis/public/gallery/publishers/octref/vsextensions/vetur/0.21.1/vspackage)
 
 - Completion for event modifiers. Thanks to contribution from [@yoyo930021](https://github.com/yoyo930021). #780 and #1326.

@@ -34,6 +34,8 @@ import { VueInfoService } from '../services/vueInfoService';
 import { DependencyService, State } from '../services/dependencyService';
 import { nullMode } from '../modes/nullMode';
 import { getServiceHost, IServiceHost } from '../services/typescriptService/serviceHost';
+import { VLSFullConfig } from '../config';
+import { SassLanguageMode } from '../modes/style/sass/sassLanguageMode';
 
 export interface VLSServices {
   infoService?: VueInfoService;
@@ -42,7 +44,7 @@ export interface VLSServices {
 
 export interface LanguageMode {
   getId(): string;
-  configure?(options: any): void;
+  configure?(options: VLSFullConfig): void;
   updateFileInfo?(doc: TextDocument): void;
 
   doValidation?(document: TextDocument): Diagnostic[];
@@ -84,6 +86,7 @@ export class LanguageModes {
     postcss: nullMode,
     scss: nullMode,
     less: nullMode,
+    sass: nullMode,
     stylus: nullMode,
     javascript: nullMode,
     typescript: nullMode,
@@ -104,7 +107,7 @@ export class LanguageModes {
     this.modelCaches.push(this.documentRegions);
   }
 
-  async init(workspacePath: string, services: VLSServices) {
+  async init(workspacePath: string, services: VLSServices, globalSnippetDir?: string) {
     let tsModule = await import('typescript');
     if (services.dependencyService) {
       const ts = services.dependencyService.getDependency('typescript');
@@ -137,11 +140,12 @@ export class LanguageModes {
       services.dependencyService
     );
 
-    this.modes['vue'] = getVueMode();
+    this.modes['vue'] = getVueMode(workspacePath, globalSnippetDir);
     this.modes['vue-html'] = vueHtmlMode;
     this.modes['css'] = getCSSMode(this.documentRegions);
     this.modes['postcss'] = getPostCSSMode(this.documentRegions);
     this.modes['scss'] = getSCSSMode(this.documentRegions);
+    this.modes['sass'] = new SassLanguageMode();
     this.modes['less'] = getLESSMode(this.documentRegions);
     this.modes['stylus'] = getStylusMode(this.documentRegions);
     this.modes['javascript'] = jsMode;

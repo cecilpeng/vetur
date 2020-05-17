@@ -9,7 +9,7 @@ import {
 import { resolve } from 'path';
 import { existsSync } from 'fs';
 
-export function initializeLanguageClient(vlsModulePath: string): LanguageClient {
+export function initializeLanguageClient(vlsModulePath: string, globalSnippetDir: string): LanguageClient {
   const debugOptions = { execArgv: ['--nolazy', '--inspect=6005'] };
 
   const documentSelector = ['vue'];
@@ -39,11 +39,22 @@ export function initializeLanguageClient(vlsModulePath: string): LanguageClient 
   const clientOptions: LanguageClientOptions = {
     documentSelector,
     synchronize: {
-      configurationSection: ['vetur', 'emmet', 'html', 'javascript', 'typescript', 'prettier', 'stylusSupremacy'],
+      configurationSection: [
+        'vetur',
+        'sass',
+        'emmet',
+        'html',
+        'css',
+        'javascript',
+        'typescript',
+        'prettier',
+        'stylusSupremacy'
+      ],
       fileEvents: vscode.workspace.createFileSystemWatcher('{**/*.js,**/*.ts}', false, false, true)
     },
     initializationOptions: {
-      config
+      config,
+      globalSnippetDir
     },
     revealOutputChannelOn: RevealOutputChannelOn.Never
   };

@@ -21,7 +21,7 @@ For 2, try these methods:
 
 - Run command: `Developer: Reinstall Extension` for Vetur.
 - Remove Vetur in your [extensions folder](https://code.visualstudio.com/docs/editor/extension-gallery#_common-questions) and do a clean reinstall.
-- (Windows): Try reinstall Vetur with admin permission.
+- (Windows): Try removing & reinstall Vetur with admin privilege.
 - If nothing above works, download the [latest pre-packaged vsix file](https://github.com/vuejs/vetur/releases) and [install through vsix](https://code.visualstudio.com/docs/editor/extension-gallery#_install-from-a-vsix).
 
 ## Vetur Crash
@@ -93,3 +93,7 @@ vsce package
 ```
   
 Now you'll find `vetur-{version}.vsix`, you can install it by editor command "Install from VSIX".
+
+## Vetur uses different version of TypeScript in .vue files to what I installed in `node_modules`.
+
+You can enable `Vetur: Use Workspace Dependencies` setting so that it uses the same version of TypeScript in your workspace.
